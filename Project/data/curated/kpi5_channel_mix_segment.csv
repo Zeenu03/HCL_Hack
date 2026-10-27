@@ -1,0 +1,7 @@
+Segment,ChannelGroup,txn_count,total_amount,txn_share_pct,amount_share_pct
+Premium,Digital,5,8945.72,20.0,13.68
+Premium,Physical,20,56470.1,80.0,86.32
+Standard,Digital,14,26412.55,33.33,26.94
+Standard,Physical,28,71642.45,66.67,73.06
+Student,Digital,13,29188.26,39.39,39.3
+Student,Physical,20,45080.4,60.61,60.7
