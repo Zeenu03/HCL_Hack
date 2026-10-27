@@ -1,4 +1,4 @@
-# Customer Transaction Analytics — Design Document
+# Analyze customer transactions — Design Document
 
 ## 1. Overview
 
