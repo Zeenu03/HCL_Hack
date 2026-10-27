@@ -1,0 +1,41 @@
+erDiagram
+    CUSTOMERS ||--o{ TRANSACTIONS : makes
+    MERCHANTS ||--o{ TRANSACTIONS : receives
+    TIME      ||--o{ TRANSACTIONS : occurs_at
+    LOCATIONS ||--o{ TRANSACTIONS : happens_in
+    LOCATIONS ||--o{ CUSTOMERS    : home_of
+
+    TRANSACTIONS {
+        string TransactionID PK
+        string CustomerID FK
+        string MerchantID FK
+        string TimeID FK
+        string LocationID FK
+        float  Amount
+        string Category
+        string Channel
+    }
+    CUSTOMERS {
+        string CustomerID PK
+        string CustomerName
+        string Segment
+        string HomeLocationID FK
+        string PreferredChannel
+    }
+    MERCHANTS {
+        string MerchantID PK
+        string MerchantName
+        string MerchantCategory
+        string RiskLevel
+    }
+    TIME {
+        string TimeID PK
+        date   Date
+        string DayOfWeek
+        string Month
+        int    Year
+        int    HourOfDay
+    }
+    LOCATIONS {
+        string LocationID PK "no source file"
+    }
