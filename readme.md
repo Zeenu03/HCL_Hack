@@ -10,7 +10,8 @@ tables with **SQL** in a curated layer, and displays the results in a dashboard 
 to any source**.
 
 ```
-sources (CSV, PostgreSQL, ...) -> ingest -> landing CSVs -> clean.py -> sql/kpi*.sql -> Streamlit
+sources (CSV, PostgreSQL, ...) -> ingest.py -> landing CSVs -> clean.py -> cleansed.* (PostgreSQL)
+                                -> sql/kpi*.sql -> curated.* (PostgreSQL) -> Streamlit
 ```
 
 **Design rules:** ingestion only collects and maps; cleansing is Python; **all business logic (joins, KPI
@@ -127,7 +128,12 @@ canonical column fails loudly with the column names.
 ┌──────────────┐  ┌─────┴────────┐  ┌──────────────┐
 │  Merchants   ├──┤ Transactions ├──┤     Time     │
 │ MerchantID PK│  │  (Fact)      │  │  TimeID PK   │
-└──────────────┘  └──────────────┘  └──────────────┘
+└──────────────┘  └─────┬────────┘  └──────────────┘
+                        │ LocationID (and Customers.HomeLocationID)
+                 ┌──────┴───────┐
+                 │  Locations   │
+                 │ LocationID PK│  (synthetic)
+                 └──────────────┘
 ```
 
 ### Data Observations (from profiling)
@@ -175,47 +181,179 @@ The earlier pandas versions of KPIs 1–3 and 5 were removed after the SQL outpu
 
 ## 6. End-to-End Pipeline
 
+### 6.1 The big picture
+
+Data moves through four layers: **source → landing → cleansed → curated**. Some layers are files, some are PostgreSQL
+tables, and two layers are kept in both (the CSV copy is only there so you can open it; nothing reads it).
+
 ```
- Source A: CSV files        Source B: PostgreSQL        Source C: any other database / system
- (data/raw/*.csv)           (`source` schema)           (add to SOURCES in ingest.py)
-        │                          │                          │
-        └────────────┬─────────────┴──────────────────────────┘
-                     ▼
-            ┌─────────────────┐
-            │    ingest.py    │  Python: collect all sources + map columns to the canonical schema
-            └────────┬────────┘
-                     ▼
-            data/Landing/*.csv   (canonical CSVs, one per table)
-                     │
-                     ▼
-            ┌─────────────────┐
-            │    clean.py     │  Python: cleanse
-            └────────┬────────┘
-                     ▼
-        PostgreSQL `cleansed` schema  (+ data/cleansed/*.csv)
-                     │
-                     ▼
-         ┌───────────────────────────┐
-         │ sql/kpi1.sql … kpi5.sql   │  SQL: all business logic
-         └──────┬────────────────────┘
-                ▼
-        PostgreSQL `curated` schema  (+ data/curated/*.csv)
-                │
-                ▼
- ┌───────────────┐    change detected in any source    ┌─────────────────────────┐
- │    app.py     │◄────────────────────────────────────┤ a source CSV or database│◄── row added by hand,
- │ (live refresh)│    re-runs the whole pipeline       │ table                   │    or generate_synthetic.py
- └───────────────┘                                     └─────────────────────────┘
+ ┌────────────────────────────── SOURCES ──────────────────────────────┐
+ │  FILES      data/raw/Transactions.csv, data/raw/Time.csv            │
+ │  DATABASE   PostgreSQL source.customers, source.merchants,          │
+ │             source.locations   (created once by sql/seed_source.sql)│
+ └──────────────────────────────────┬──────────────────────────────────┘
+                                    │  STAGE 1  ingest.run()           Python / pandas
+                                    │  read every source, rename columns to the canonical names
+                                    ▼
+                      data/Landing/*.csv   (5 canonical CSVs)          FILES only
+                                    │  STAGE 2  clean.run()            Python / pandas
+                                    │  apply the cleansing rules, check foreign keys
+                    ┌───────────────┴────────────────┐
+                    ▼                                ▼
+   PostgreSQL  cleansed.*  (5 tables)       data/cleansed/*.csv   (copy for viewing)
+                    │  STAGE 3  run_sql_files()      SQL
+                    │  run sql/kpi1 … kpi5 in name order
+                    ▼
+   PostgreSQL  curated.*  (10 KPI tables) ──STAGE 4 export_curated()──► data/curated/*.csv   (copy for viewing)
+                    │
+                    │  STAGE 5  app.py                Python / Streamlit
+                    ▼
+               Dashboard  (reads curated.* only; every 3 s checks the sources and re-runs stages 1–4 if they changed)
 ```
 
-`run_pipeline.py` calls `ingest.py`, then `clean.py`, then runs every `sql/kpi*.sql` in file-name order, and prints a short log for each step. Each SQL file is a self-contained `DROP TABLE IF EXISTS …;
-CREATE TABLE curated.<name> AS SELECT …`, so re-running is safe; adding a KPI needs no change to `run_pipeline.py`.
+The same flow as a Mermaid diagram (rendered on GitHub; source in `pipeline_flow.mmd`). Yellow = files, blue = PostgreSQL tables, green = Python, purple = SQL.
 
-### Complete flow, step by step
+```mermaid
+flowchart TD
+    %% Complete flow: sources -> landing -> cleansed -> curated -> dashboard
+
+    subgraph SRC["Sources"]
+        RAW["data/raw/<br/>Transactions.csv, Time.csv<br/>(files)"]
+        SEEDCSV["data/raw/<br/>Customers.csv, Merchants.csv"]
+        SRCDB[("PostgreSQL source.*<br/>customers, merchants, locations")]
+    end
+
+    SEED["sql/seed_source.sql<br/>COPY + INSERT<br/>(first docker compose up only)"]
+    GEN["pipeline/generate_synthetic.py<br/>appends rows"]
+
+    subgraph PIPE["run_pipeline.py main()"]
+        INGEST["Stage 1: ingest.run()<br/>Python / pandas<br/>read sources, map to canonical columns"]
+        LANDING[/"data/Landing/*.csv<br/>5 canonical CSVs"/]
+        CLEAN["Stage 2: clean.run()<br/>Python / pandas<br/>cleansing rules + foreign key check"]
+        CLEANSED[("PostgreSQL cleansed.*<br/>5 tables")]
+        CLEANCSV[/"data/cleansed/*.csv<br/>copy for viewing"/]
+        KPI["Stage 3: run_sql_files()<br/>sql/kpi1 ... kpi5 .sql<br/>runs inside PostgreSQL"]
+        CURATED[("PostgreSQL curated.*<br/>10 KPI tables")]
+        EXPORT["Stage 4: export_curated()"]
+        CURCSV[/"data/curated/*.csv<br/>copy for viewing"/]
+    end
+
+    subgraph DASH["app.py (Streamlit)"]
+        FRAG["st.fragment every 3 s"]
+        SIG{"ingest.signature()<br/>sources changed?"}
+        RERUN["run_pipeline.main()"]
+        TABLE["table(name)<br/>SELECT * FROM curated.name"]
+        UI["Dashboard<br/>overview + KPI 1-5 tabs<br/>segment filter"]
+    end
+
+    SEEDCSV --> SEED --> SRCDB
+    GEN -- "append CSV rows" --> RAW
+    GEN -- "INSERT" --> SRCDB
+
+    RAW -- "pd.read_csv" --> INGEST
+    SRCDB -- "pd.read_sql (pull)" --> INGEST
+    INGEST -- "to_csv" --> LANDING
+    LANDING -- "pd.read_csv" --> CLEAN
+    CLEAN -- "to_sql (push)" --> CLEANSED
+    CLEAN -- "to_csv" --> CLEANCSV
+    CLEANSED --> KPI
+    KPI -- "DROP + CREATE TABLE AS" --> CURATED
+    CURATED --> EXPORT -- "to_csv" --> CURCSV
+
+    FRAG --> SIG
+    SIG -- "yes" --> RERUN
+    RERUN -. "runs stages 1-4" .-> INGEST
+    RERUN --> TABLE
+    SIG -- "no" --> TABLE
+    CURATED -- "pd.read_sql" --> TABLE
+    TABLE --> UI
+
+    classDef file fill:#fff4d6,stroke:#c9a227,color:#333
+    classDef db fill:#dbeafe,stroke:#2563eb,color:#333
+    classDef py fill:#dcfce7,stroke:#16a34a,color:#333
+    classDef sql fill:#ede9fe,stroke:#7c3aed,color:#333
+    class RAW,SEEDCSV,LANDING,CLEANCSV,CURCSV file
+    class SRCDB,CLEANSED,CURATED db
+    class INGEST,CLEAN,EXPORT,GEN,FRAG,RERUN,TABLE,UI py
+    class SEED,KPI sql
+```
+
+**In one line:** pandas moves the data in and cleans it; PostgreSQL stores it; SQL computes every KPI; Streamlit only
+draws the result.
+
+**The round trip.** Part of the data starts in PostgreSQL, comes out to the local machine to be cleaned, and goes back
+in to be processed:
+
+1. **Pull**: `ingest.py` reads `Transactions` and `Time` from local CSVs and `Customers`, `Merchants`, `Locations`
+   from PostgreSQL (`source` schema), and writes all five as CSVs in `data/Landing/`.
+2. **Clean locally**: `clean.py` cleans those CSVs with pandas.
+3. **Push**: `clean.py` loads the cleaned tables into PostgreSQL (`cleansed` schema).
+4. **Process in the database**: the `sql/kpi*.sql` files run inside PostgreSQL, from `cleansed.*` to `curated.*`. No
+   data comes back to Python for this step.
+5. **Read**: the dashboard reads `curated.*` from PostgreSQL; a CSV copy is also saved to `data/curated/`.
+
+Why it is built this way: PostgreSQL is only *one* of the sources, so everything is first brought to one common format
+(the landing CSVs) whatever its origin; cleansing rules and per-rule row counts are easiest to write in pandas; joins and
+aggregations are what SQL is best at. The cost is that data leaves the database and comes back, which is negligible at
+this size; at millions of rows the cleansing would move into SQL too, so the data never leaves the database (see
+question 17).
+
+### 6.2 Where each layer lives
+
+| Layer | As files | As PostgreSQL tables | Written by | Read by |
+|-------|----------|----------------------|------------|---------|
+| Source | `data/raw/Transactions.csv`, `data/raw/Time.csv` | `source.customers`, `source.merchants`, `source.locations` | given data; `seed_source.sql`; `generate_synthetic.py` | `ingest.py` |
+| Landing | `data/Landing/*.csv` (5) | — | `ingest.py` | `clean.py` |
+| Cleansed | `data/cleansed/*.csv` (copy) | `cleansed.transactions`, `.time`, `.customers`, `.merchants`, `.locations` | `clean.py` | `sql/kpi*.sql` |
+| Curated | `data/curated/*.csv` (copy) | `curated.kpi1_…` to `curated.kpi5_…` (10 tables) | `sql/kpi*.sql`; copy by `run_pipeline.py` | `app.py`, and you, with SQL |
+
+Things that are easy to miss:
+- **The KPI SQL never reads a CSV.** It reads the `cleansed` tables. The CSVs in `data/cleansed/` and `data/curated/`
+  are copies; deleting them changes nothing downstream.
+- **Column names are lowercase in PostgreSQL.** `clean.py` lowercases them before loading, so the CSV column
+  `TransactionID` is `transactionid` in SQL.
+- **`data/raw/Customers.csv` and `Merchants.csv` are read only once**, when the database is created
+  (`docker compose up -d` on an empty volume). Editing them afterwards has no effect; change the `source.*` tables
+  instead, or reset with `docker compose down -v` and start again.
+- **Landing is files only, on purpose.** It is the hand-over point between "where the data came from" and the rest of
+  the pipeline, and a CSV is easy to open and check.
+
+### 6.3 What `python run_pipeline.py` does, call by call
+
+| # | Call | File | What happens |
+|---|------|------|--------------|
+| 1 | `get_engine()` | `pipeline/db.py` | Connects to PostgreSQL using `DATABASE_URL` (default `postgresql+psycopg2://bank:bank@localhost:5432/bank`). |
+| 2 | `CREATE SCHEMA IF NOT EXISTS curated` | `run_pipeline.py` | Makes sure the output schema exists. |
+| 3 | `ingest.run()` | `pipeline/ingest.py` | For each table in `SOURCES`: read every source (CSV with `pd.read_csv`, database with `pd.read_sql`), rename columns with the source's `columns` map, fail loudly if a canonical column is missing, concatenate, write `data/Landing/<Table>.csv`. Everything is read as text; no cleaning. |
+| 4 | `clean.run()` | `pipeline/clean.py` | Read each landing CSV as text → `clean_table()` applies the rules (section 6.9) and counts removed rows → `check_foreign_keys()` drops transactions whose customer, merchant or time was not kept → write each table to `data/cleansed/` and, with `to_sql(..., if_exists="replace")`, to the `cleansed` schema → print the per-rule report. |
+| 5 | `run_sql_files()` | `run_pipeline.py` | Run every `sql/kpi*.sql` in file-name order. Each file runs as **one transaction**: helper temp tables (`ON COMMIT DROP`) → `DROP TABLE IF EXISTS curated.x` → `CREATE TABLE curated.x AS SELECT …`. Prints the row count of every table it created. |
+| 6 | `export_curated()` | `run_pipeline.py` | List every table in the `curated` schema and save each one as `data/curated/<name>.csv`. |
+
+Because every step overwrites its output completely, the pipeline is safe to run any number of times. A new KPI is a new
+`sql/kpi6_*.sql` file; `run_pipeline.py` picks it up without any change.
+
+**Where each data move happens in the code.** Everything starts from `main()` in `run_pipeline.py`; to follow it,
+put a breakpoint on `ingest.run()` there and step in.
+
+| Data move | Direction | Code |
+|-----------|-----------|------|
+| Seed the source database (once) | CSV → PostgreSQL | `docker-compose.yml` mounts `data/raw` as `/seed`; `sql/seed_source.sql` runs `COPY source.customers FROM '/seed/Customers.csv'` (same for merchants) and `INSERT INTO source.locations` |
+| Read the CSV sources | file → Python | `ingest.py` `_read_csv()` (`pd.read_csv`) |
+| Pull the database sources | PostgreSQL → Python | `ingest.py` `_read_database()` (`pd.read_sql`) |
+| Write landing | Python → file | `ingest.py` `run()` (`to_csv` into `data/Landing/`) |
+| Read landing | file → Python | `clean.py` `read_landing()` (`pd.read_csv`, all text) |
+| Clean | in Python | `clean.py` `clean_table()`, then `check_foreign_keys()` |
+| Push cleansed | Python → PostgreSQL | `clean.py` `write_cleansed()` (`to_sql(..., schema="cleansed", if_exists="replace")`); the CSV copy is the `to_csv` in `run()` |
+| Compute KPIs | inside PostgreSQL | `run_pipeline.py` `run_sql_files()` sends each `sql/kpi*.sql` with `cursor.execute(sql)` |
+| Copy curated out | PostgreSQL → file | `run_pipeline.py` `export_curated()` (`read_sql` then `to_csv`) |
+| Read for the dashboard | PostgreSQL → Streamlit | `app.py` `table(name)`: `pd.read_sql("SELECT * FROM curated.<name>")` |
+| Detect changes, re-run | Streamlit → pipeline | `app.py` `refresh_if_changed()`: `ingest.signature()`, then `run_pipeline.main()` |
+
+### 6.4 Complete flow, step by step
 
 | # | Stage | Triggered by | Reads | Writes | Language |
 |---|-------|--------------|-------|--------|----------|
-| 0 | Set up the demo source database | `docker compose up -d` (first start only) | `data/raw/Customers.csv`, `Merchants.csv`, `Transactions.csv` (for location IDs) | PostgreSQL `source.customers`, `source.merchants`, `source.locations` | SQL |
+| 0 | Set up the demo source database | `docker compose up -d` (first start only) | `data/raw/Customers.csv`, `Merchants.csv`, `Transactions.csv` (for location IDs) | PostgreSQL `source.customers`, `source.merchants`, `source.locations`; empty `cleansed` and `curated` schemas | SQL |
 | 1 | **Ingest**: collect all sources, map to the canonical schema | `run_pipeline.py` (or `ingest.py`) | every source in `SOURCES`: `data/raw/*.csv` and the `source.*` tables | `data/Landing/*.csv` (5 files) | Python |
 | 2 | **Cleanse** | `run_pipeline.py` (or `clean.py`) | `data/Landing/*.csv` | PostgreSQL `cleansed.*` and `data/cleansed/*.csv` | Python |
 | 3 | **Transform**: all business logic | `run_pipeline.py`, one `sql/kpiN_*.sql` at a time in name order | `cleansed.*` | PostgreSQL `curated.*` (10 tables) | SQL |
@@ -227,16 +365,39 @@ Each stage only reads what the stage before it wrote, so every layer can be insp
 `data/Landing/` to see what the sources were mapped to, `data/cleansed/` to see what survived cleansing, and
 `data/curated/` to see the KPI results.
 
-**What happens when a new row arrives**
+### 6.5 What happens when a new row arrives
+
 1. A row is added to a source: a line in `data/raw/Transactions.csv`, an `INSERT` into `source.customers`, or the
    synthetic generator doing either.
-2. Within 3 seconds, the dashboard's fragment reruns and calls `ingest.signature()`. The CSV's modified time or the
-   table's row count has changed, so the fingerprint differs from the last run.
-3. `app.py` runs the whole pipeline (stages 1–4). Stage 1 rewrites the landing CSVs, stage 2 recleans them, stage 3
-   rebuilds every curated table, stage 4 refreshes the CSV copies.
+2. Within 3 seconds, the dashboard's fragment reruns and calls `ingest.signature()`: the modified time of each source
+   CSV plus the row count of each source query. One of them has changed, so the fingerprint differs from the last run.
+3. `app.py` calls `run_pipeline.main()` (stages 1–4) under a lock, so two browser tabs never run it at the same time.
+   Stage 1 rewrites the landing CSVs, stage 2 recleans them, stage 3 rebuilds every curated table, stage 4 refreshes
+   the CSV copies.
 4. The dashboard reloads the `curated` tables, and the new row shows up in the metrics, charts and "Last refreshed" time.
 
-#### Worked example: following one transaction
+Note: the database part of the fingerprint is a row **count**, so an `UPDATE` to an existing `source.*` row is not
+detected until something else changes (or you restart the dashboard).
+
+### 6.6 Querying the data yourself
+
+All layers in PostgreSQL can be queried directly once the pipeline has run:
+
+```
+docker compose exec db psql -U bank -d bank
+```
+
+```sql
+\dt cleansed.*                       -- cleansed tables
+\dt curated.*                        -- KPI tables
+SELECT * FROM curated.kpi2_hourly LIMIT 10;
+SELECT segment, SUM(txn_count) FROM curated.kpi2_hourly GROUP BY segment;
+SELECT * FROM cleansed.transactions WHERE amount > 4000;
+```
+
+Any SQL client (DBeaver, pgAdmin) works too: host `localhost`, port `5432`, database / user / password `bank`.
+
+### 6.7 Worked example: following one transaction
 
 The first transaction in the data, `T001`, from the source to the dashboard:
 
@@ -252,13 +413,13 @@ The first transaction in the data, `T001`, from the source to the dashboard:
 | KPI 5 | 1 Digital + 1 Physical (50 / 50); preferred channel is Branch but she used Digital and ATM, so `channel_shift_flag = 1` |
 | Dashboard | the transaction counts in the overview, her row in the KPI 1 table, her bar in the KPI 4 chart |
 
-### Step 1 — Ingest: collect and map (`pipeline/ingest.py`)
+### 6.8 Step 1 — Ingest: collect and map (`pipeline/ingest.py`)
 
 For every canonical table, reads each configured source, renames its columns to the canonical names, concatenates the
 sources and writes `data/Landing/<Table>.csv`. It does no cleaning and no business logic, so bad values pass through
 untouched for `clean.py` to deal with. The log shows how many rows each source contributed.
 
-### Step 2 — Cleanse (`pipeline/clean.py`)
+### 6.9 Step 2 — Cleanse (`pipeline/clean.py`)
 
 Reads the five canonical CSVs from `data/Landing/` (it never touches the original sources), applies the rules below in
 Python, and writes the cleaned tables to the `cleansed` schema (and to `data/cleansed/` as CSV). Cleansing stays in
@@ -278,7 +439,7 @@ Python by design; it contains no KPI logic.
 
 The step prints how many rows were removed by each rule, so the cleansing is traceable.
 
-### Step 3 — Transform into Curated Layer (`sql/kpi*.sql`)
+### 6.10 Step 3 — Transform into Curated Layer (`sql/kpi*.sql`)
 
 Each KPI file reads from the `cleansed` schema, joins the tables it needs, computes the metric in SQL (CTEs, window
 functions, `GROUP BY`), and creates the result as a table in the `curated` schema. The output names below are table
@@ -316,9 +477,13 @@ The SQL results for KPIs 1–3 and 5 were checked against the earlier pandas ver
 - **Anomaly flag:** customers whose most-used channel differs from their `PreferredChannel` → `channel_shift_flag = 1`.
 - **Output:** `kpi5_channel_mix_overall`, `kpi5_channel_mix_segment`, `kpi5_customer_channel`
 
-### Step 4 — Dashboard (`app.py`)
+### 6.11 Step 4 — Dashboard (`app.py`)
 
-A Streamlit app that reads only from the `curated` schema in PostgreSQL (no calculations in the UI).
+A Streamlit app that reads only from the `curated` schema in PostgreSQL (no calculations in the UI). Every chart and
+table is loaded through one function, `table(name)`, which runs `SELECT * FROM curated.<name>`; the `data/curated/*.csv`
+copies are not used. The only processing in the app is the sidebar `Segment` filter, applied to the loaded tables in
+pandas. Because it reads the database directly, **PostgreSQL must be running** (`docker compose up -d`) for the
+dashboard to start.
 
 | Section | Visuals |
 |---------|---------|
@@ -331,7 +496,7 @@ A Streamlit app that reads only from the `curated` schema in PostgreSQL (no calc
 
 A sidebar filter for `Segment` lets the user slice the views.
 
-### Live Updates
+### 6.12 Live Updates
 
 The dashboard refreshes itself when a row is added to any configured source (a source CSV or a database table).
 
@@ -347,7 +512,7 @@ to trigger the pipeline.
 To try it: run `streamlit run app.py`, then either append a line to `data/raw/Transactions.csv` by hand, insert a
 row into a `source` table, or run `python pipeline/generate_synthetic.py --interval 5` in a second terminal.
 
-### Synthetic Data Generation (`pipeline/generate_synthetic.py`)
+### 6.13 Synthetic Data Generation (`pipeline/generate_synthetic.py`)
 
 "Synthetic data" here means one thing only: **adding more rows to the existing tables**. No column is added, removed or
 renamed in any given table. The generator only appends rows (to the source CSVs in `data/raw/` for `Transactions` and `Time`,
@@ -389,7 +554,7 @@ All commands run from the project folder (`Project/`).
 2. Start the database (also seeds the `source` schema on first start): `docker compose up -d`
 3. Install dependencies: `pip install -r requirements.txt`
 4. Run the pipeline: `python run_pipeline.py`
-5. Open the dashboard: `streamlit run app.py`
+5. Open the dashboard: `streamlit run app.py` (keep the database from step 2 running; the dashboard reads it directly)
 6. (Optional) Add data: `python pipeline/generate_synthetic.py --rows 50`, or watch it update live: in a second terminal run `python pipeline/generate_synthetic.py --interval 5`
 
 ---
@@ -529,7 +694,7 @@ tool (Kafka, change-data-capture).
 **6. Why PostgreSQL? Could it be SQL Server or MySQL?**
 PostgreSQL is free, runs in one Docker command, and is a real server. Ingestion already works with any
 SQLAlchemy-supported database, because the source URL and query are configuration. The KPI SQL files use some
-PostgreSQL features (`FILTER`, `LATERAL`, `generate_series`, `date_trunc`), so moving the *warehouse* to another database
+PostgreSQL features (`FILTER`, `LATERAL`, `ARRAY_AGG`, `ON COMMIT DROP` temp tables), so moving the *warehouse* to another database
 means translating those parts.
 
 **7. Why Streamlit?**
@@ -541,9 +706,10 @@ The dashboard contains no business logic; it only draws curated tables.
 **8. How do you handle dirty data?**
 `clean.py` trims text, standardises case, drops exact duplicates, rows with a missing or duplicate key, rows that cannot
 be typed (bad amount or date), amounts of 0 or less, hours outside 0–23, values outside the allowed lists, and
-transactions whose customer, merchant or time does not exist. It prints how many rows each rule removed. One honest
-caveat: the sample data was already clean (no nulls, no duplicates, all keys valid), so these rules removed nothing on it
-and have not been exercised on a deliberately dirty file. That is the first test we would add.
+transactions whose customer, merchant or time does not exist. It prints how many rows each rule removed. The sample data was
+already clean (no nulls, no duplicates, all keys valid), so these rules remove nothing on it. They were checked once by
+hand on a copy with injected bad rows (duplicate, missing key, negative and non-numeric amount, unknown customer, bad
+category and channel, hour 25, bad date), and each rule removed its row; this is not yet an automated test.
 
 **9. `Transactions.Category` and `Merchants.MerchantCategory` disagree in 81 of 100 rows. Which one do you use?**
 `Transactions.Category`, because it records what the customer actually spent on in that transaction (a retail merchant
@@ -583,7 +749,7 @@ repeat ratio is high (KPI 3), localise offers (KPI 4), prioritise digital-adopti
 We first wrote KPIs 1–3 and 5 in pandas, then rewrote them in SQL and compared every output table: all 9 matched
 (KPI 5's SQL version adds a few extra columns). KPI 4 is new and was checked for sensible values only. We also
 ran the full pipeline from an empty database and tested the live refresh by adding rows to a CSV source and to a
-database source. What is *not* tested: the cleansing rules on dirty data, other source types, and the dashboard in a real
+database source. What is *not* tested: automated tests for the cleansing rules (only a one-off manual check), other source types, and the dashboard in a real
 browser (it was checked with Streamlit's test runner).
 
 **16. Is the pipeline safe to re-run?**
