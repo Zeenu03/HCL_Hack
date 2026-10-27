@@ -4,13 +4,20 @@
 
 A retail bank wants to analyze customer transaction behavior to **improve personalized marketing** and **detect anomalies**.
 This project builds a simple, fully local data pipeline that takes raw CSV files from a landing zone, cleanses them,
-transforms them into KPI-ready tables in a curated layer, and displays the results in a dashboard.
+transforms them into KPI-ready tables in a curated layer, and displays the results in a dashboard that **updates live
+when a row is added to a landing CSV**.
 
 **Goal:** keep it simple and easy to run. The whole thing runs with two commands.
 
 ```
 python run_pipeline.py
 streamlit run app.py
+```
+
+A third, optional command generates synthetic transactions (one-off batch or a live stream) to exercise the pipeline:
+
+```
+python pipeline/generate_synthetic.py --rows 50
 ```
 
 ---
@@ -24,6 +31,12 @@ streamlit run app.py
 | 3 | Repeat Merchant Ratio | How often customers return to the same merchant | Loyalty partnerships; new high-risk merchants may signal fraud |
 | 4 | Geo-Location Consistency Index | How consistent transaction locations are with the customer's usual footprint | Detect location anomalies; local offers |
 | 5 | Digital vs. Branch Transaction Mix | Proportion of digital vs. physical (Branch/ATM) transactions | Digital adoption campaigns; flag channel shifts |
+| 6 | Transaction Amount Anomaly | How far a transaction's amount is from the norm for its category | Flag unusually large transactions |
+| 7 | Monthly Spend Trend | Spend per month and category, with month-over-month change | Seasonal campaigns; detect category shifts over time |
+| 8 | Customer Anomaly Score | Count of anomaly flags raised per customer across KPIs 2–6 | One ranked list of customers to review |
+
+KPIs 1–5 are the required set; 6–8 are extensions. New KPIs are added by dropping one more `kpiN_*.py` file into
+`pipeline/` (see section 6).
 
 ---
 
@@ -34,13 +47,14 @@ streamlit run app.py
 | **Python** | Main language |
 | **pandas** | Load CSVs, clean data, write output files |
 | **numpy** | Numeric calculations, conditional flags |
-| **DuckDB** | SQL on top of DataFrames / CSVs for joins and aggregations in KPI scripts (no server needed) |
-| **Streamlit** | Dashboard to visualize all 5 KPIs |
+| **Streamlit** (≥ 1.37) | Dashboard to visualize all KPIs; `st.fragment(run_every=…)` gives live refresh with no extra library |
+
+Joins and aggregations are done in pandas (`merge`, `groupby`); no database or server is needed.
 
 Install:
 
 ```
-pip install pandas numpy duckdb streamlit
+pip install pandas numpy "streamlit>=1.37"
 ```
 
 ---
@@ -96,8 +110,12 @@ project/
 │   ├── kpi2_peak_time.py
 │   ├── kpi3_repeat_merchant.py
 │   ├── kpi4_geo_consistency.py
-│   └── kpi5_channel_mix.py
-├── run_pipeline.py         # runs all steps in order
+│   ├── kpi5_channel_mix.py
+│   ├── kpi6_amount_anomaly.py
+│   ├── kpi7_monthly_trend.py
+│   ├── kpi8_customer_risk_score.py
+│   └── generate_synthetic.py   # appends synthetic rows to the landing CSVs
+├── run_pipeline.py         # runs clean.py, then every pipeline/kpi*.py in name order
 ├── app.py                  # Streamlit dashboard
 └── readme.md
 ```
@@ -118,18 +136,21 @@ project/
         │
         ▼
  ┌───────────────────────────┐
- │ kpi1.py … kpi5.py         │  transform (pandas + DuckDB SQL)
+ │ kpi1.py … kpi8.py         │  transform (pandas)
  └──────┬────────────────────┘
         ▼
  data/curated/*.csv
         │
         ▼
- ┌───────────────┐
- │    app.py     │  Streamlit dashboard
+ ┌───────────────┐   file change detected   ┌──────────────────────┐
+ │    app.py     │◄─────────────────────────┤ data/landing/*.csv   │◄── row added by hand,
+ │ (live refresh)│   re-runs the pipeline   └──────────────────────┘    or generate_synthetic.py
  └───────────────┘
 ```
 
-`run_pipeline.py` calls `clean.py` first, then the five KPI scripts in order, and prints a short log for each step.
+`run_pipeline.py` calls `clean.py` first, then every `pipeline/kpi*.py` in file-name order (so `kpi8` runs after the
+KPIs it reads), and prints a short log for each step. Each KPI script exposes a `run()` function; adding a KPI needs no
+change to `run_pipeline.py`.
 
 ### Step 1 — Ingest & Cleanse (`pipeline/clean.py`)
 
@@ -151,7 +172,7 @@ The step prints how many rows were removed by each rule, so the cleansing is tra
 
 ### Step 2 — Transform into Curated Layer (`pipeline/kpi*.py`)
 
-Each KPI script reads from `data/cleansed/`, joins the tables it needs (DuckDB SQL), computes the metric, and writes the result to `data/curated/`.
+Each KPI script reads from `data/cleansed/`, joins the tables it needs (pandas), computes the metric, and writes the result to `data/curated/`.
 
 #### KPI 1 — Customer Segmentation by Transaction Category
 - **Logic:** per customer, total spend per `Category` ÷ customer's total spend = category share. The category with the highest share is the customer's **dominant category**.
@@ -183,6 +204,23 @@ Each KPI script reads from `data/cleansed/`, joins the tables it needs (DuckDB S
 - **Anomaly flag:** customers whose most-used channel differs from their `PreferredChannel` → `channel_shift_flag = 1`.
 - **Output:** `kpi5_channel_mix_overall.csv`, `kpi5_channel_mix_segment.csv`, `kpi5_customer_channel.csv`
 
+#### KPI 6 — Transaction Amount Anomaly (extension)
+- **Logic:** z-score of each transaction's `Amount` against the mean and standard deviation of its `Category` across all
+  customers. Customers have only ~2 transactions each, so a per-customer baseline would be too thin.
+- **Anomaly flag:** `z > 2` → `amount_anomaly_flag = 1` (threshold is a constant at the top of the script).
+- **Output:** `kpi6_amount_anomalies.csv`
+
+#### KPI 7 — Monthly Spend Trend (extension)
+- **Logic:** total spend and transaction count by `Year`, `Month` and `Category`; month-over-month % change per category.
+- **Also:** the category whose share moved most in the latest month (`category_shift`).
+- **Output:** `kpi7_monthly_spend.csv`
+
+#### KPI 8 — Customer Anomaly Score (extension)
+- **Logic:** per customer, sum of `odd_hour_flag` (KPI 2), `geo_anomaly_flag` (KPI 4), `channel_shift_flag` (KPI 5),
+  `amount_anomaly_flag` (KPI 6) and a high-risk-merchant flag (KPI 3: any `High` risk merchant). Rank customers by score.
+- **Reads:** the curated outputs of KPIs 2–6, so it must run last (guaranteed by the file-name ordering).
+- **Output:** `kpi8_customer_risk_score.csv`
+
 ### Step 3 — Dashboard (`app.py`)
 
 A Streamlit app that reads only from `data/curated/` (no calculations in the UI).
@@ -195,30 +233,97 @@ A Streamlit app that reads only from `data/curated/` (no calculations in the UI)
 | KPI 3 | Distribution of repeat merchant ratio; top loyal customers; high-risk merchant exposure |
 | KPI 4 | Geo consistency index per customer; flagged customers |
 | KPI 5 | Digital vs. Physical split (overall + by segment); channel-shift customers |
+| KPI 6 | Table of flagged high-amount transactions; amount vs. category scatter |
+| KPI 7 | Line chart of monthly spend by category; month-over-month change table |
+| KPI 8 | Ranked table of customers by anomaly score |
 
 A sidebar filter for `Segment` lets the user slice the views.
+
+### Live Updates
+
+The dashboard refreshes itself when a row is added to any file in `data/landing/`.
+
+1. The dashboard body is wrapped in `@st.fragment(run_every="3s")`, so it reruns every 3 seconds.
+2. On each run, `app.py` compares the modified times of the landing CSVs with those seen on the previous run.
+3. If any changed, `app.py` calls `run_pipeline.py` (clean + all KPIs), then reloads `data/curated/`.
+4. The page shows "Last refreshed at …" and the current transaction count, so a new row is visibly picked up.
+
+A live toggle in the sidebar turns auto-refresh off. The dashboard still only *reads* curated data; its only extra job is
+to trigger the pipeline.
+
+To try it: run `streamlit run app.py`, then either append a line to `data/landing/Transactions.csv` by hand or run
+`python pipeline/generate_synthetic.py --interval 5` in a second terminal.
+
+### Synthetic Data Generation (`pipeline/generate_synthetic.py`)
+
+Appends new, valid rows to the landing CSVs so the pipeline and live dashboard can be tested beyond the 100 given rows.
+
+| Option | Meaning |
+|--------|---------|
+| `--rows N` | Append `N` transactions in one go (default 50) |
+| `--interval S` | Append one transaction every `S` seconds, until stopped (live demo) |
+| `--anomaly-rate P` | Fraction of rows deliberately made anomalous (default 0.05) |
+| `--seed K` | Fixed random seed for reproducible data |
+
+How rows are built:
+- `CustomerID`, `MerchantID` and `LocationID` are sampled from the existing dimension tables, so referential integrity holds.
+- `Category`, `Channel` and `Amount` follow the distributions in the current data; the customer's `PreferredChannel` is
+  favoured so the channel-shift KPI has a baseline.
+- A new `Time.csv` row is appended for each new timestamp, with a fresh `TimeID` that continues the existing numbering;
+  `TransactionID` also continues its own numbering.
+- Anomalous rows are produced by picking one of: night hour (0–5), a location far from the customer's home, an amount
+  well above the category mean, a `High` risk merchant, or a channel different from the customer's preference. These
+  trigger the flags in KPIs 2–6 and make KPI 8 meaningful.
+- Each row is written with a single append, so the dashboard never reads a half-written line.
+
+Generated rows go into the same landing files as the real data; keep a copy of the original CSVs if you need to reset.
 
 ---
 
 ## 7. How to Run
 
 1. Place the raw CSV files in `data/landing/`.
-2. Install dependencies: `pip install pandas numpy duckdb streamlit`
+2. Install dependencies: `pip install pandas numpy "streamlit>=1.37"`
 3. Run the pipeline: `python run_pipeline.py`
 4. Open the dashboard: `streamlit run app.py`
+5. (Optional) Watch it update live: in a second terminal run `python pipeline/generate_synthetic.py --interval 5`
 
 ---
 
 ## 8. Assumptions & Limitations
 
-- Data is small (100 transactions), so everything runs in memory with pandas/DuckDB; no distributed tools needed.
+- Data is small (100 transactions), so everything runs in memory with pandas; no distributed tools needed.
+- Live update re-runs the whole pipeline whenever a landing file changes (polling every 3 s). That is fine at this size
+  but would need incremental processing at larger volumes.
+- Synthetic rows follow simple sampling rules; they test the pipeline and dashboard, not real banking behaviour.
 - `LocationID` has no lookup table, so geo consistency is ID-based, not distance-based.
 - Per-customer KPIs are based on few transactions and are indicative, not statistically strong.
 - `Transactions.Category` is treated as the source of truth for spend category.
 
 ## 9. Future Enhancements
 
+### If time permits: run the pipeline on a real public dataset
+
+Prove the pipeline is not tied to the 100-row sample by running it on the closest public transaction dataset.
+
+- **Candidates** (check licence and exact columns before use):
+  - Sparkov synthetic credit-card transactions (Kaggle): customer, merchant, category, amount, timestamp, and
+    latitude/longitude. Likely the closest fit to our schema.
+  - IBM TabFormer credit-card transactions: user, merchant, amount, time, channel type.
+  - PaySim (Kaggle): synthetic mobile-money transactions, with no merchant categories or locations, so a weaker fit.
+- **Approach:** a small adapter script (`pipeline/adapters/<dataset>.py`) reshapes the download into our four landing
+  CSVs (`Transactions`, `Customers`, `Merchants`, `Time`) with the same column names. Everything after that, from
+  `clean.py` to the dashboard, runs unchanged.
+- **Mapping gaps to handle:** invented `LocationID` values (for example from a rounded latitude/longitude or the
+  city), a derived `Channel` where the dataset has none, and `Segment` / `RiskLevel` / `PreferredChannel` derived from
+  spend or fraud rate where missing.
+- **What it shows:** how the KPIs behave with far more history per customer, and, if the dataset has fraud labels, how
+  well our anomaly flags line up with them. A sample of a few thousand rows is enough.
+
+### Other ideas
+
 - Store curated tables as Parquet instead of CSV.
+- Process only new rows (incremental load) instead of re-running the whole pipeline on every change.
 - Add a location dimension (city/country) for real distance-based geo anomalies.
 - Schedule the pipeline (e.g. Prefect / cron) for daily loads.
 - Add clustering (scikit-learn KMeans) on category shares for richer segments.
