@@ -1,7 +1,7 @@
 -- KPI 3: Repeat Merchant Ratio.
 -- Per customer: repeat_merchant_ratio = (total_txns - unique_merchants) / total_txns
 -- (0 = every transaction at a new merchant, closer to 1 = very loyal), plus exposure to High-risk merchants.
--- high_risk_flag (any High-risk merchant transaction) is read by KPI 8.
+-- high_risk_flag = 1 when the customer has any High-risk merchant transaction.
 
 DROP TABLE IF EXISTS curated.kpi3_repeat_merchant;
 CREATE TABLE curated.kpi3_repeat_merchant AS

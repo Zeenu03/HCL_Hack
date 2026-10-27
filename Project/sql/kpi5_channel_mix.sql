@@ -1,7 +1,7 @@
 -- KPI 5: Digital vs. Branch Transaction Mix.
 -- Channel -> channel group (Digital, or Physical = Branch + ATM); share by count and amount overall, per Segment
 -- and per customer. channel_shift_flag = 1 when a customer's PreferredChannel is not among their most-used
--- channels (ties for most-used do not count as a shift). The flag is read by KPI 8.
+-- channels (ties for most-used do not count as a shift).
 
 CREATE TEMP TABLE kpi5_txn ON COMMIT DROP AS
 SELECT t.transactionid, t.customerid, c.customername, c.segment, c.preferredchannel, t.channel,

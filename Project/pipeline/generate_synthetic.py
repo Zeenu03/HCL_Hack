@@ -21,7 +21,7 @@ from sqlalchemy import text
 
 from db import get_engine
 from ingest import RAW_DIR
-ANOMALIES = ["night", "far_location", "high_amount", "high_risk_merchant", "channel_shift"]
+ANOMALIES = ["night", "far_location", "high_risk_merchant", "channel_shift"]
 FIRST = ["Aarav", "Diya", "Kabir", "Meera", "Rohan", "Isha", "Vivaan", "Anaya", "Arjun", "Sara"]
 LAST = ["Sharma", "Patel", "Iyer", "Khan", "Singh", "Reddy", "Das", "Nair", "Mehta", "Gupta"]
 SUFFIX = ["Group", "Traders", "and Sons", "Ltd", "Stores", "Services"]
@@ -137,8 +137,6 @@ class Generator:
                     dist = haversine_km(home["latitude"].iloc[0], home["longitude"].iloc[0],
                                         self.locations["latitude"], self.locations["longitude"])
                     location = self.locations.iloc[int(np.argmax(dist.values))]["locationid"]
-            elif kind == "high_amount":
-                amount = stats["mean"] + 4 * max(stats["std"], 1)
             elif kind == "high_risk_merchant":
                 high = self.merchants[self.merchants["risklevel"] == "High"]
                 if not high.empty:

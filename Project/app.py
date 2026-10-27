@@ -40,7 +40,7 @@ def curated_ready():
     with engine().connect() as conn:
         return conn.execute(text(
             "SELECT COUNT(*) FROM information_schema.tables "
-            "WHERE table_schema = 'curated' AND table_name = 'kpi8_customer_risk_score'")).scalar() > 0
+            "WHERE table_schema = 'curated' AND table_name = 'kpi5_customer_channel'")).scalar() > 0
 
 
 def refresh_if_changed():
@@ -65,30 +65,29 @@ def dashboard(segment):
             return df[df["segment"] == segment]
         return df
 
-    txns = seg(table("kpi6_amount_anomalies"))
-    risk = seg(table("kpi8_customer_risk_score"))
+    customers = seg(table("kpi1_customer_category_share"))
     odd = seg(table("kpi2_odd_hour_txns"))
     geo = seg(table("kpi4_geo_consistency"))
+    channels = seg(table("kpi5_customer_channel"))
 
     st.title("Customer Transaction Analytics")
     st.caption(f"Last refreshed at {st.session_state.get('refreshed_at', datetime.now()):%H:%M:%S}"
                f" - segment: {segment}")
 
     cols = st.columns(6)
-    cols[0].metric("Transactions", f"{len(txns):,}")
-    cols[1].metric("Total amount", f"{txns['amount'].sum():,.0f}")
-    cols[2].metric("Active customers", f"{txns['customerid'].nunique():,}")
+    cols[0].metric("Transactions", f"{int(customers['txn_count'].sum()):,}")
+    cols[1].metric("Total amount", f"{customers['total_spend'].sum():,.0f}")
+    cols[2].metric("Active customers", f"{len(customers):,}")
     cols[3].metric("Odd-hour txns", f"{len(odd):,}")
-    cols[4].metric("Amount anomalies", f"{int(txns['amount_anomaly_flag'].sum()):,}")
-    cols[5].metric("Customers with a flag", f"{int((risk['anomaly_score'] > 0).sum()):,}")
+    cols[4].metric("Geo-flagged customers", f"{int(geo['geo_anomaly_flag'].sum()):,}")
+    cols[5].metric("Channel-shift customers", f"{int(channels['channel_shift_flag'].sum()):,}")
 
-    tabs = st.tabs([f"KPI {i}" for i in range(1, 9)])
+    tabs = st.tabs([f"KPI {i}" for i in range(1, 6)])
 
     with tabs[0]:
         st.subheader("Customer Segmentation by Transaction Category")
         share = seg(table("kpi1_segment_category_share"))
         st.bar_chart(share.pivot(index="segment", columns="category", values="spend_share_pct"))
-        customers = seg(table("kpi1_customer_category_share"))
         st.dataframe(customers[["customerid", "customername", "segment", "dominant_category",
                                 "dominant_share_pct", "total_spend"]], hide_index=True)
 
@@ -132,24 +131,7 @@ def dashboard(segment):
         by_segment = seg(table("kpi5_channel_mix_segment"))
         right.bar_chart(by_segment.pivot(index="segment", columns="channelgroup", values="txn_share_pct"))
         st.write("Customers whose preferred channel is not among their most-used")
-        shifted = seg(table("kpi5_customer_channel"))
-        st.dataframe(shifted[shifted["channel_shift_flag"] == 1], hide_index=True)
-
-    with tabs[5]:
-        st.subheader("Transaction Amount Anomaly")
-        st.scatter_chart(txns, x="amount", y="amount_zscore", color="category")
-        st.dataframe(txns[txns["amount_anomaly_flag"] == 1], hide_index=True)
-
-    with tabs[6]:
-        st.subheader("Monthly Spend Trend")
-        monthly = table("kpi7_monthly_spend")
-        monthly["period"] = monthly["year"].astype(str) + "-" + monthly["monthnum"].astype(str).str.zfill(2)
-        st.line_chart(monthly.pivot(index="period", columns="category", values="total_spend"))
-        st.dataframe(monthly, hide_index=True)
-
-    with tabs[7]:
-        st.subheader("Customer Anomaly Score")
-        st.dataframe(risk, hide_index=True)
+        st.dataframe(channels[channels["channel_shift_flag"] == 1], hide_index=True)
 
 
 live = st.sidebar.toggle("Live updates (every 3 s)", value=True)

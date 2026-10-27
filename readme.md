@@ -45,11 +45,8 @@ explained) · 11 Expected questions and answers
 | 3 | Repeat Merchant Ratio | How often customers return to the same merchant | Loyalty partnerships; new high-risk merchants may signal fraud |
 | 4 | Geo-Location Consistency Index | How consistent transaction locations are with the customer's usual footprint | Detect location anomalies; local offers |
 | 5 | Digital vs. Branch Transaction Mix | Proportion of digital vs. physical (Branch/ATM) transactions | Digital adoption campaigns; flag channel shifts |
-| 6 | Transaction Amount Anomaly | How far a transaction's amount is from the norm for its category | Flag unusually large transactions |
-| 7 | Monthly Spend Trend | Spend per month and category, with month-over-month change | Seasonal campaigns; detect category shifts over time |
-| 8 | Customer Anomaly Score | Count of anomaly flags raised per customer across KPIs 2–6 | One ranked list of customers to review |
 
-KPIs 1–5 are the required set; 6–8 are extensions. New KPIs are added by dropping one more `kpiN_*.sql` file into
+New KPIs are added by dropping one more `kpiN_*.sql` file into
 `sql/` (see section 6).
 
 ---
@@ -69,7 +66,7 @@ Install:
 
 ```
 docker compose up -d        # starts PostgreSQL
-pip install pandas sqlalchemy psycopg2-binary "streamlit>=1.37"
+pip install -r requirements.txt
 ```
 
 ---
@@ -141,7 +138,7 @@ canonical column fails loudly with the column names.
 - **No location table in the given data:** only `LocationID` codes (e.g. `L035`) exist. The synthetic `Locations` table adds a city and coordinates per code so distances can be computed; the real data itself still carries only the codes.
 - **Small history per customer:** 47 of 60 customers have transactions, averaging ~2 each (max 6). Per-customer KPIs should be read with this in mind.
 - **ID overlap:** `TransactionID` (`T001`…) and `TimeID` (`T1001`…) share the `T` prefix; always join on the correct column.
-- Date range: `Time.csv` covers Jan – Mar 2026, but the 100 transactions fall in Jan – Feb 2026, so KPI 7 shows two months.
+- Date range: `Time.csv` covers Jan – Mar 2026, but the 100 transactions fall in Jan – Feb 2026.
 
 ---
 
@@ -166,16 +163,13 @@ project/
 │   ├── kpi2_peak_time.sql
 │   ├── kpi3_repeat_merchant.sql
 │   ├── kpi4_geo_consistency.sql
-│   ├── kpi5_channel_mix.sql
-│   ├── kpi6_amount_anomaly.sql
-│   ├── kpi7_monthly_trend.sql
-│   └── kpi8_customer_risk_score.sql
+│   └── kpi5_channel_mix.sql
 ├── run_pipeline.py         # runs ingest.py, clean.py, then every sql/kpi*.sql in name order
 ├── app.py                  # Streamlit dashboard
 └── readme.md
 ```
 
-The earlier pandas versions of KPIs 1–3 and 5–7 were removed after the SQL outputs were checked to match them.
+The earlier pandas versions of KPIs 1–3 and 5 were removed after the SQL outputs were checked to match them.
 
 ---
 
@@ -202,7 +196,7 @@ The earlier pandas versions of KPIs 1–3 and 5–7 were removed after the SQL o
                      │
                      ▼
          ┌───────────────────────────┐
-         │ sql/kpi1.sql … kpi8.sql   │  SQL: all business logic
+         │ sql/kpi1.sql … kpi5.sql   │  SQL: all business logic
          └──────┬────────────────────┘
                 ▼
         PostgreSQL `curated` schema  (+ data/curated/*.csv)
@@ -214,8 +208,7 @@ The earlier pandas versions of KPIs 1–3 and 5–7 were removed after the SQL o
  └───────────────┘                                     └─────────────────────────┘
 ```
 
-`run_pipeline.py` calls `ingest.py`, then `clean.py`, then runs every `sql/kpi*.sql` in file-name order (so `kpi8` runs
-after the KPIs it reads), and prints a short log for each step. Each SQL file is a self-contained `DROP TABLE IF EXISTS …;
+`run_pipeline.py` calls `ingest.py`, then `clean.py`, then runs every `sql/kpi*.sql` in file-name order, and prints a short log for each step. Each SQL file is a self-contained `DROP TABLE IF EXISTS …;
 CREATE TABLE curated.<name> AS SELECT …`, so re-running is safe; adding a KPI needs no change to `run_pipeline.py`.
 
 ### Complete flow, step by step
@@ -225,7 +218,7 @@ CREATE TABLE curated.<name> AS SELECT …`, so re-running is safe; adding a KPI 
 | 0 | Set up the demo source database | `docker compose up -d` (first start only) | `data/raw/Customers.csv`, `Merchants.csv`, `Transactions.csv` (for location IDs) | PostgreSQL `source.customers`, `source.merchants`, `source.locations` | SQL |
 | 1 | **Ingest**: collect all sources, map to the canonical schema | `run_pipeline.py` (or `ingest.py`) | every source in `SOURCES`: `data/raw/*.csv` and the `source.*` tables | `data/Landing/*.csv` (5 files) | Python |
 | 2 | **Cleanse** | `run_pipeline.py` (or `clean.py`) | `data/Landing/*.csv` | PostgreSQL `cleansed.*` and `data/cleansed/*.csv` | Python |
-| 3 | **Transform**: all business logic | `run_pipeline.py`, one `sql/kpiN_*.sql` at a time in name order | `cleansed.*` (KPI 8 also reads KPI 2–6 outputs) | PostgreSQL `curated.*` (13 tables) | SQL |
+| 3 | **Transform**: all business logic | `run_pipeline.py`, one `sql/kpiN_*.sql` at a time in name order | `cleansed.*` | PostgreSQL `curated.*` (10 tables) | SQL |
 | 4 | **Export** a CSV copy | `run_pipeline.py` | `curated.*` | `data/curated/*.csv` | Python |
 | 5 | **Serve** | `streamlit run app.py` | `curated.*` only | the dashboard | Python / Streamlit |
 | 6 | **Live loop** | `app.py` every 3 s | `ingest.signature()` of all sources | re-runs stages 1–4 if anything changed | Python |
@@ -257,9 +250,7 @@ The first transaction in the data, `T001`, from the source to the dashboard:
 | KPI 3 | 2 transactions at 2 different merchants, `repeat_merchant_ratio = 0`, no High-risk merchant |
 | KPI 4 | home `L057`, 0 of 2 transactions at home, 2 distinct locations, 521 km away on average, so `geo_anomaly_flag = 1` |
 | KPI 5 | 1 Digital + 1 Physical (50 / 50); preferred channel is Branch but she used Digital and ATM, so `channel_shift_flag = 1` |
-| KPI 6 | `T001` has `z = -0.36` against the Retail average, so no amount anomaly |
-| KPI 8 | two flags (geo, channel shift) give `anomaly_score = 2`, rank 9 of 47 customers |
-| Dashboard | the transaction counts in the overview, her row in the KPI 1 and KPI 8 tables, her bar in the KPI 4 chart |
+| Dashboard | the transaction counts in the overview, her row in the KPI 1 table, her bar in the KPI 4 chart |
 
 ### Step 1 — Ingest: collect and map (`pipeline/ingest.py`)
 
@@ -292,7 +283,7 @@ The step prints how many rows were removed by each rule, so the cleansing is tra
 Each KPI file reads from the `cleansed` schema, joins the tables it needs, computes the metric in SQL (CTEs, window
 functions, `GROUP BY`), and creates the result as a table in the `curated` schema. The output names below are table
 names (`curated.<name>`); `run_pipeline.py` also exports each one to `data/curated/<name>.csv` as a reference copy.
-The SQL results for KPIs 1–3 and 5–7 were checked against the earlier pandas versions and match; KPIs 4 and 8 are SQL-only.
+The SQL results for KPIs 1–3 and 5 were checked against the earlier pandas versions and match; KPI 4 is SQL-only.
 
 #### KPI 1 — Customer Segmentation by Transaction Category
 - **Logic:** per customer, total spend per `Category` ÷ customer's total spend = category share. The category with the highest share is the customer's **dominant category**.
@@ -325,38 +316,18 @@ The SQL results for KPIs 1–3 and 5–7 were checked against the earlier pandas
 - **Anomaly flag:** customers whose most-used channel differs from their `PreferredChannel` → `channel_shift_flag = 1`.
 - **Output:** `kpi5_channel_mix_overall`, `kpi5_channel_mix_segment`, `kpi5_customer_channel`
 
-#### KPI 6 — Transaction Amount Anomaly (extension)
-- **Logic:** z-score of each transaction's `Amount` against the mean and standard deviation of its `Category` across all
-  customers. Customers have only ~2 transactions each, so a per-customer baseline would be too thin.
-- **Anomaly flag:** `z > 2` → `amount_anomaly_flag = 1` (threshold is a constant at the top of the SQL file).
-- **Output:** `kpi6_amount_anomalies`
-
-#### KPI 7 — Monthly Spend Trend (extension)
-- **Logic:** total spend and transaction count by `Year`, `Month` and `Category`; month-over-month % change per category.
-- **Also:** the category whose share moved most in the latest month (`category_shift`).
-- **Output:** `kpi7_monthly_spend`
-
-#### KPI 8 — Customer Anomaly Score (extension)
-- **Logic:** per customer, sum of `odd_hour_flag` (KPI 2), `geo_anomaly_flag` (KPI 4), `channel_shift_flag` (KPI 5),
-  `amount_anomaly_flag` (KPI 6) and a high-risk-merchant flag (KPI 3: any `High` risk merchant). Rank customers by score.
-- **Reads:** the curated outputs of KPIs 2–6, so it must run last (guaranteed by the file-name ordering).
-- **Output:** `kpi8_customer_risk_score`
-
 ### Step 4 — Dashboard (`app.py`)
 
 A Streamlit app that reads only from the `curated` schema in PostgreSQL (no calculations in the UI).
 
 | Section | Visuals |
 |---------|---------|
-| Overview | Total transactions, total amount, active customers, anomaly counts |
+| Overview | Total transactions, total amount, active customers, odd-hour transactions, geo-flagged and channel-shift customers |
 | KPI 1 | Stacked bar of category share by segment; table of dominant category per customer |
 | KPI 2 | Bar chart by hour, bar chart by day of week; table of odd-hour transactions |
 | KPI 3 | Distribution of repeat merchant ratio; top loyal customers; high-risk merchant exposure |
 | KPI 4 | Geo consistency index per customer; flagged customers |
 | KPI 5 | Digital vs. Physical split (overall + by segment); channel-shift customers |
-| KPI 6 | Table of flagged high-amount transactions; amount vs. category scatter |
-| KPI 7 | Line chart of monthly spend by category; month-over-month change table |
-| KPI 8 | Ranked table of customers by anomaly score |
 
 A sidebar filter for `Segment` lets the user slice the views.
 
@@ -399,9 +370,8 @@ How rows are built:
   favoured so the channel-shift KPI has a baseline.
 - A new `Time.csv` row is appended for each new timestamp (dated after the last existing date), with a fresh `TimeID`
   that continues the existing numbering; `TransactionID` also continues its own numbering.
-- Anomalous rows are produced by picking one of: night hour (0–5), a location far from the customer's home, an amount
-  well above the category mean, a `High` risk merchant, or a channel different from the customer's preference. These
-  trigger the flags in KPIs 2–6 and make KPI 8 meaningful.
+- Anomalous rows are produced by picking one of: night hour (0–5), a location far from the customer's home, a `High`
+  risk merchant, or a channel different from the customer's preference. These trigger the flags in KPIs 2, 3, 4 and 5.
 - Each CSV row is written with a single append, and each database row with a single `INSERT`, so the dashboard never
   reads a half-written row.
 
@@ -417,7 +387,7 @@ All commands run from the project folder (`Project/`).
 1. Place the source CSV files in `data/raw/`. If the repo sits in an iCloud-synced folder (e.g. Desktop), make sure the
    files are downloaded (`cat data/raw/*.csv > /dev/null`); Docker cannot read cloud-only placeholders.
 2. Start the database (also seeds the `source` schema on first start): `docker compose up -d`
-3. Install dependencies: `pip install pandas sqlalchemy psycopg2-binary "streamlit>=1.37"`
+3. Install dependencies: `pip install -r requirements.txt`
 4. Run the pipeline: `python run_pipeline.py`
 5. Open the dashboard: `streamlit run app.py`
 6. (Optional) Add data: `python pipeline/generate_synthetic.py --rows 50`, or watch it update live: in a second terminal run `python pipeline/generate_synthetic.py --interval 5`
@@ -508,9 +478,6 @@ invalid rows removed, foreign keys checked). These are also loaded into the Post
 | `kpi5_channel_mix_overall.csv` | channel group | Digital vs. Physical share by count and amount |
 | `kpi5_channel_mix_segment.csv` | segment × channel group | the same share per segment |
 | `kpi5_customer_channel.csv` | customer | digital / physical %, `most_used_channel`, `channel_shift_flag` |
-| `kpi6_amount_anomalies.csv` | transaction | category mean and std, `amount_zscore`, `amount_anomaly_flag` |
-| `kpi7_monthly_spend.csv` | month × category | spend, month-over-month % change, share, `category_shift` |
-| `kpi8_customer_risk_score.csv` | customer | the five flags, `anomaly_score`, `risk_rank` |
 
 ### Code components
 
@@ -521,9 +488,9 @@ invalid rows removed, foreign keys checked). These are also loaded into the Post
 | `pipeline/db.py` | Creates the database connection used by the pipeline and dashboard | env var `DATABASE_URL` | nothing | Default matches `docker-compose.yml` |
 | `pipeline/ingest.py` | **Collect + map.** Reads every source in `SOURCES`, renames columns to the canonical names, concatenates, writes landing CSVs. Also provides `signature()` for change detection | the configured CSVs and database queries | `data/Landing/*.csv` | Add a source = add a dict to `SOURCES`; new source *type* = add a reader to `READERS`. Raises an error naming any missing column |
 | `pipeline/clean.py` | **Cleanse** the landing CSVs with the rules in section 6 and report how many rows each rule removed | `data/Landing/*.csv` | `cleansed.*` tables, `data/cleansed/*.csv` | No KPI logic |
-| `sql/kpi1…kpi8_*.sql` | **All business logic**, one file per KPI. Each one drops and recreates its `curated` tables | `cleansed.*` (KPI 8: also curated KPI 2–6) | `curated.*` | Re-running is safe. Thresholds (z > 2, geo index < 0.5) are constants at the top of the file |
+| `sql/kpi1…kpi5_*.sql` | **All business logic**, one file per KPI. Each one drops and recreates its `curated` tables | `cleansed.*` | `curated.*` | Re-running is safe. The geo thresholds (index < 0.5, at least 2 locations) are constants at the top of `kpi4_geo_consistency.sql` |
 | `run_pipeline.py` | The **orchestrator**: ingest → clean → every `sql/kpi*.sql` in name order → export curated CSVs | all of the above | logs, `data/curated/*.csv` | `python run_pipeline.py` |
-| `app.py` | The **Streamlit dashboard**, 8 KPI tabs, segment filter, live toggle | `curated.*` only | nothing (it triggers the pipeline when a source changes) | Refreshes every 3 s through `st.fragment` |
+| `app.py` | The **Streamlit dashboard**, 5 KPI tabs, segment filter, live toggle | `curated.*` only | nothing (it triggers the pipeline when a source changes) | Refreshes every 3 s through `st.fragment` |
 | `pipeline/generate_synthetic.py` | **Synthetic data**: appends more rows to the existing sources, never changes a column | the sources (for IDs and distributions) | rows appended to `data/raw/Transactions.csv`, `Time.csv`; rows inserted into `source.customers`, `source.merchants` | `--rows`, `--interval`, `--anomaly-rate`, `--seed`, `--new-customers`, `--new-merchants` |
 
 ---
@@ -600,56 +567,46 @@ Almost no transaction happens at the customer's home location in this data, and 
 most customers score a consistency index near 0. The flag needs a low index *and* at least 2 distinct locations. It is a
 property of the data, not evidence of fraud, and the dashboard says so.
 
-**13. Why is the amount anomaly a z-score per category and not per customer?**
-Customers have about 2 transactions each (47 of 60 customers have any, at most 6), which is far too little to estimate a
-personal baseline. Comparing against the category across all customers gives a stable mean and standard deviation. The
-flag is `z > 2`; the threshold is a constant at the top of `kpi6_amount_anomaly.sql`.
-
-**14. What does the Customer Anomaly Score mean and how should the bank use it?**
-It adds five 0/1 flags per customer: odd-hour, geo, channel shift, unusual amount and High-risk merchant (range 0–5),
-then ranks customers. It is a triage list for review, not a fraud verdict. The flags are simple rules with fixed
-thresholds, not a trained model.
-
-**15. How would you detect fraud properly?**
+**13. How would you detect fraud properly?**
 Replace or complement the rules with a model such as Isolation Forest, trained on far more history per customer, with
-labels where available. The current KPI flags make good features for it, and the pipeline would feed the model the same
+labels where available. The current KPI flags (odd-hour, geo, channel shift, High-risk merchant) make good features for it, and the pipeline would feed the model the same
 curated tables.
 
-**16. What business decisions can the dashboard support?**
+**14. What business decisions can the dashboard support?**
 Target campaigns by dominant category (KPI 1), time marketing pushes to peak hours (KPI 2), pick loyalty partners where
 repeat ratio is high (KPI 3), localise offers (KPI 4), prioritise digital-adoption campaigns for Physical-heavy segments
-(KPI 5), spot spend shifts month to month (KPI 7), and review the highest-scoring customers first (KPI 8).
+(KPI 5), and review the customers flagged by KPIs 2–5 first.
 
 ### Engineering and quality
 
-**17. How do you know the SQL is correct?**
-We first wrote KPIs 1–3 and 5–7 in pandas, then rewrote them in SQL and compared every output table: all 11 matched
-(KPI 5's SQL version adds a few extra columns). KPIs 4 and 8 are new and were checked for sensible values only. We also
+**15. How do you know the SQL is correct?**
+We first wrote KPIs 1–3 and 5 in pandas, then rewrote them in SQL and compared every output table: all 9 matched
+(KPI 5's SQL version adds a few extra columns). KPI 4 is new and was checked for sensible values only. We also
 ran the full pipeline from an empty database and tested the live refresh by adding rows to a CSV source and to a
 database source. What is *not* tested: the cleansing rules on dirty data, other source types, and the dashboard in a real
 browser (it was checked with Streamlit's test runner).
 
-**18. Is the pipeline safe to re-run?**
+**16. Is the pipeline safe to re-run?**
 Yes. Each SQL file drops and recreates its tables inside one transaction, ingest overwrites the landing CSVs, and the
 cleaned tables are replaced each time. Running it twice gives the same result.
 
-**19. How does it scale?**
+**17. How does it scale?**
 Today the whole pipeline runs again on every change and cleansing is in memory with pandas, which is fine for thousands
 of rows. For millions: load only new rows (incremental), move cleansing into the database or Spark, add indexes and
 partitioning on the PostgreSQL tables, and schedule runs instead of polling.
 
-**20. What about security and privacy?**
+**18. What about security and privacy?**
 Customer names are personal data, and the demo database password (`bank`) is in `docker-compose.yml` for convenience;
 real credentials would come from environment variables or a secrets manager (`DATABASE_URL` and `SOURCE_DATABASE_URL`
 already read from the environment). Access control, masking of names in the dashboard and audit logging are not
 implemented.
 
-**21. What did you add beyond the required five KPIs?**
-Three extension KPIs (amount anomaly, monthly spend trend, customer anomaly score), multi-source ingestion with column
-mapping, live refresh, a synthetic data generator for testing, and a layered pipeline whose every stage can be inspected.
+**19. What did you add beyond the five required KPIs?**
+Distance-based geo analysis (with the synthetic locations), channel-shift and High-risk-merchant flags, multi-source
+ingestion with column mapping, live refresh, a synthetic data generator for testing, and a layered pipeline whose every stage can be inspected.
 
-**22. What would you do with more time?**
+**20. What would you do with more time?**
 Test cleansing on deliberately dirty files, add source priority rules for conflicting records, make loads incremental,
-replace the synthetic `Locations` table with real geography, add a trained anomaly model, and run the pipeline on a
+replace the synthetic `Locations` table with real geography, add more KPIs (amount outliers, monthly spend trend, a combined customer risk score) and a trained anomaly model, and run the pipeline on a
 larger public transaction dataset (section 9).
 
