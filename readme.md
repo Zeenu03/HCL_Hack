@@ -61,7 +61,8 @@ pip install pandas numpy "streamlit>=1.37"
 
 ## 4. Source Data (Landing Zone)
 
-Four CSV files form a simple **star schema**: one fact table and three dimension tables.
+Four CSV files form a simple **star schema**: one fact table and three dimension tables. A fifth, synthetic reference
+table `Locations.csv` resolves the `LocationID` codes (see the table below).
 
 | File | Type | Rows | Columns |
 |------|------|------|---------|
@@ -69,6 +70,10 @@ Four CSV files form a simple **star schema**: one fact table and three dimension
 | `Customers.csv` | Dimension | 60 | CustomerID, CustomerName, Segment, HomeLocationID, PreferredChannel |
 | `Merchants.csv` | Dimension | 60 | MerchantID, MerchantName, MerchantCategory, RiskLevel |
 | `Time.csv` | Dimension | 60 | TimeID, Date, DayOfWeek, Month, Year, HourOfDay |
+| `Locations.csv` | Reference (synthetic, new) | one row per `LocationID` in use | LocationID, City, Latitude, Longitude |
+
+`Locations.csv` is not part of the given data. It is made up for this project and is the only new file; the four given
+CSVs keep their columns exactly as they are. `Transactions.LocationID` and `Customers.HomeLocationID` both join to it.
 
 ### Data Model
 
@@ -89,7 +94,7 @@ Four CSV files form a simple **star schema**: one fact table and three dimension
 - No null values or duplicate rows in any file; all foreign keys in `Transactions` resolve to the dimension tables.
 - **Values:** Segment = Student / Premium / Standard; Channel = Digital / ATM / Branch; Category = Retail / Travel / Healthcare / Utilities; RiskLevel = Low / Medium / High.
 - **Category mismatch:** in 81 of 100 transactions, `Transactions.Category` differs from `Merchants.MerchantCategory`. KPI 1 uses `Transactions.Category` (what the customer actually spent on).
-- **No location table:** only `LocationID` codes (e.g. `L035`) exist, so geo analysis compares IDs, not real distances.
+- **No location table in the given data:** only `LocationID` codes (e.g. `L035`) exist. The synthetic `Locations.csv` adds a city and coordinates per code so distances can be computed; the real data itself still carries only the codes.
 - **Small history per customer:** 47 of 60 customers have transactions, averaging ~2 each (max 6). Per-customer KPIs should be read with this in mind.
 - **ID overlap:** `TransactionID` (`T001`…) and `TimeID` (`T1001`…) share the `T` prefix; always join on the correct column.
 - Date range: Jan 2026 – Mar 2026.
@@ -194,7 +199,8 @@ Each KPI script reads from `data/cleansed/`, joins the tables it needs (pandas),
 #### KPI 4 — Geo-Location Consistency Index
 - **Logic:** per customer,
   `geo_consistency_index = txns where LocationID == HomeLocationID / total_txns`
-  plus `distinct_locations` count.
+  plus `distinct_locations` count and, using `Locations.csv`, the average distance (km) of a customer's transactions
+  from their home location.
 - **Anomaly flag:** customers with low index and multiple distinct locations → `geo_anomaly_flag = 1`.
 - **Note:** in the current data almost no transactions happen at the home location, so most customers will score low. This is a data characteristic, worth calling out in the dashboard.
 - **Output:** `kpi4_geo_consistency.csv`
@@ -256,7 +262,10 @@ To try it: run `streamlit run app.py`, then either append a line to `data/landin
 
 ### Synthetic Data Generation (`pipeline/generate_synthetic.py`)
 
-Appends new, valid rows to the landing CSVs so the pipeline and live dashboard can be tested beyond the 100 given rows.
+"Synthetic data" here means one thing only: **adding more rows to the existing CSVs**. No column is added, removed or
+renamed in any given file. The generator only appends rows, so the pipeline and live dashboard can be tested beyond the
+100 given rows. The one new file, `Locations.csv`, is a synthetic reference table that is created once and can also grow
+with new rows.
 
 | Option | Meaning |
 |--------|---------|
@@ -266,7 +275,10 @@ Appends new, valid rows to the landing CSVs so the pipeline and live dashboard c
 | `--seed K` | Fixed random seed for reproducible data |
 
 How rows are built:
-- `CustomerID`, `MerchantID` and `LocationID` are sampled from the existing dimension tables, so referential integrity holds.
+- `CustomerID`, `MerchantID` and `LocationID` are sampled from the existing dimension tables (and `Locations.csv`), so
+  referential integrity holds.
+- Rows may also be appended to `Customers.csv` and `Merchants.csv` (with `--new-customers K` / `--new-merchants K`) to grow
+  the dimensions, again using only their existing columns.
 - `Category`, `Channel` and `Amount` follow the distributions in the current data; the customer's `PreferredChannel` is
   favoured so the channel-shift KPI has a baseline.
 - A new `Time.csv` row is appended for each new timestamp, with a fresh `TimeID` that continues the existing numbering;
@@ -296,7 +308,7 @@ Generated rows go into the same landing files as the real data; keep a copy of t
 - Live update re-runs the whole pipeline whenever a landing file changes (polling every 3 s). That is fine at this size
   but would need incremental processing at larger volumes.
 - Synthetic rows follow simple sampling rules; they test the pipeline and dashboard, not real banking behaviour.
-- `LocationID` has no lookup table, so geo consistency is ID-based, not distance-based.
+- `LocationID` has no lookup table in the given data. `Locations.csv` is synthetic, so distances are illustrative, not real geography.
 - Per-customer KPIs are based on few transactions and are indicative, not statistically strong.
 - `Transactions.Category` is treated as the source of truth for spend category.
 
@@ -324,6 +336,6 @@ Prove the pipeline is not tied to the 100-row sample by running it on the closes
 
 - Store curated tables as Parquet instead of CSV.
 - Process only new rows (incremental load) instead of re-running the whole pipeline on every change.
-- Add a location dimension (city/country) for real distance-based geo anomalies.
+- Replace the synthetic `Locations.csv` with a real location dimension (city/country) for real distance-based geo anomalies.
 - Schedule the pipeline (e.g. Prefect / cron) for daily loads.
 - Add clustering (scikit-learn KMeans) on category shares for richer segments.
