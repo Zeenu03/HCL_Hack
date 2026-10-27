@@ -1,4 +1,4 @@
-Segment,DayOfWeek,txn_count,total_amount,DayOrder
+segment,dayofweek,txn_count,total_amount,dayorder
 Premium,Monday,4,9024.39,1
 Premium,Tuesday,4,9223.34,2
 Premium,Wednesday,3,11198.93,3

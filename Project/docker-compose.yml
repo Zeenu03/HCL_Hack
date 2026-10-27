@@ -1,0 +1,18 @@
+# PostgreSQL = second data source (CRM-style tables) + home of the cleansed / curated schemas.
+# The init script only runs on the first start of an empty database; reset with `docker compose down -v`.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: bank
+      POSTGRES_PASSWORD: bank
+      POSTGRES_DB: bank
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./sql/seed_source.sql:/docker-entrypoint-initdb.d/seed_source.sql:ro
+      - ./data/raw:/seed:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bank -d bank"]
+      interval: 2s
+      retries: 30

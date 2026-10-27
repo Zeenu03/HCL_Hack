@@ -1,4 +1,4 @@
-CustomerID,CustomerName,Segment,txn_count,total_spend,Retail_spend,Travel_spend,Healthcare_spend,Utilities_spend,Retail_share_pct,Travel_share_pct,Healthcare_share_pct,Utilities_share_pct,dominant_category,dominant_share_pct
+customerid,customername,segment,txn_count,total_spend,retail_spend,travel_spend,healthcare_spend,utilities_spend,retail_share_pct,travel_share_pct,healthcare_share_pct,utilities_share_pct,dominant_category,dominant_share_pct
 C002,Jason Cohen,Premium,1,747.57,0.0,0.0,747.57,0.0,0.0,0.0,100.0,0.0,Healthcare,100.0
 C005,Erin Hall,Premium,1,2188.13,0.0,0.0,2188.13,0.0,0.0,0.0,100.0,0.0,Healthcare,100.0
 C012,Kevin Parsons,Premium,2,5836.81,0.0,0.0,1815.93,4020.88,0.0,0.0,31.11,68.89,Utilities,68.89

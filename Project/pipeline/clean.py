@@ -1,16 +1,20 @@
-"""Step 1: Ingest & Cleanse.
+"""Step 2: Cleanse.
 
-Reads every CSV in data/landing/, applies the cleansing rules from the design doc,
-and writes the cleaned files to data/cleansed/ with the same file names.
-Prints how many rows each rule removed so the cleansing is traceable.
+Reads the canonical CSVs that ingest.py wrote to data/Landing/ (whatever the original sources were),
+applies the cleansing rules from the design doc, and writes the cleaned tables to the PostgreSQL
+`cleansed` schema and to data/cleansed/ as CSV. Prints how many rows each rule removed so the
+cleansing is traceable. Cleansing only: all KPI logic lives in sql/.
 """
 
 from pathlib import Path
 
 import pandas as pd
+from sqlalchemy import text
+
+from db import get_engine
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
-LANDING_DIR = DATA_DIR / "landing"
+LANDING_DIR = DATA_DIR / "Landing"
 CLEANSED_DIR = DATA_DIR / "cleansed"
 
 CHANNELS = ["Digital", "ATM", "Branch"]
@@ -36,7 +40,7 @@ SCHEMAS = {
         "allowed": {"Category": CATEGORIES, "Channel": CHANNELS},
         "floats": ["Amount"],
     },
-    # Optional synthetic reference table; cleaned only if present in landing.
+    # Synthetic reference table (source.locations), seeded with the database.
     "Locations.csv": {
         "pk": "LocationID",
         "floats": ["Latitude", "Longitude"],
@@ -135,21 +139,28 @@ def check_foreign_keys(transactions, tables, log):
     return transactions
 
 
+def read_landing(name):
+    path = LANDING_DIR / name
+    if not path.exists():
+        raise FileNotFoundError(f"Landing file missing: {path} (run pipeline/ingest.py first)")
+    return pd.read_csv(path, dtype=str)
+
+
+def write_cleansed(name, df, engine):
+    out = df.copy()
+    out.columns = [c.lower() for c in out.columns]
+    out.to_sql(name[:-4].lower(), engine, schema="cleansed", if_exists="replace", index=False)
+
+
 def run():
     CLEANSED_DIR.mkdir(parents=True, exist_ok=True)
-
-    missing = [n for n in FOREIGN_KEYS.values() if not (LANDING_DIR / n).exists()]
-    if missing or not (LANDING_DIR / "Transactions.csv").exists():
-        raise FileNotFoundError(f"Required landing files missing in {LANDING_DIR}")
+    engine = get_engine()
+    with engine.begin() as conn:
+        conn.execute(text("CREATE SCHEMA IF NOT EXISTS cleansed"))
 
     tables, logs = {}, {}
     for name in SCHEMAS:
-        path = LANDING_DIR / name
-        if not path.exists():
-            print(f"\n[{name}] not found in landing, skipped")
-            continue
-        raw = pd.read_csv(path, dtype=str)
-        tables[name], logs[name] = clean_table(name, raw)
+        tables[name], logs[name] = clean_table(name, read_landing(name))
 
     tables["Transactions.csv"] = check_foreign_keys(
         tables["Transactions.csv"], tables, logs["Transactions.csv"]
@@ -157,9 +168,10 @@ def run():
 
     for name, df in tables.items():
         df.to_csv(CLEANSED_DIR / name, index=False)
+        write_cleansed(name, df, engine)
         logs[name].report(len(df))
 
-    print(f"\nCleansed files written to {CLEANSED_DIR}")
+    print(f"\nCleansed tables written to schema `cleansed` and {CLEANSED_DIR}")
     return tables
 
 

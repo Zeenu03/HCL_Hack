@@ -1,12 +1,12 @@
-TransactionID,CustomerID,CustomerName,Segment,MerchantID,Category,Channel,Amount,category_mean,category_std,amount_zscore,amount_anomaly_flag
+transactionid,customerid,customername,segment,merchantid,category,channel,amount,category_mean,category_std,amount_zscore,amount_anomaly_flag
 T002,C018,Mrs. Ashley Thornton,Student,M015,Healthcare,ATM,4756.04,1987.08,1463.38,1.89,0
 T012,C029,Kimberly Harper,Standard,M018,Utilities,Branch,4851.05,2412.24,1350.9,1.81,0
 T056,C010,Michele Diaz,Student,M048,Retail,ATM,4613.28,2370.43,1299.33,1.73,0
 T054,C040,Katherine Henry,Premium,M047,Retail,ATM,4479.4,2370.43,1299.33,1.62,0
 T089,C055,Christina Elliott,Premium,M058,Utilities,Branch,4441.7,2412.24,1350.9,1.5,0
 T074,C027,Megan Sellers,Premium,M020,Healthcare,ATM,4086.53,1987.08,1463.38,1.43,0
-T036,C058,Erik Rios,Premium,M028,Healthcare,Branch,4051.57,1987.08,1463.38,1.41,0
 T081,C018,Mrs. Ashley Thornton,Student,M036,Utilities,Branch,4322.36,2412.24,1350.9,1.41,0
+T036,C058,Erik Rios,Premium,M028,Healthcare,Branch,4051.57,1987.08,1463.38,1.41,0
 T063,C052,Joyce Wilson,Standard,M059,Retail,Digital,4152.25,2370.43,1299.33,1.37,0
 T071,C022,Jessica Hill,Student,M058,Healthcare,Digital,3872.61,1987.08,1463.38,1.29,0
 T068,C012,Kevin Parsons,Premium,M055,Utilities,Digital,4020.88,2412.24,1350.9,1.19,0
@@ -25,8 +25,8 @@ T003,C003,Brittney Gallagher,Standard,M002,Retail,Branch,3673.37,2370.43,1299.33
 T087,C056,Sherry Chapman,Standard,M044,Retail,Digital,3661.55,2370.43,1299.33,0.99,0
 T039,C056,Sherry Chapman,Standard,M008,Healthcare,Digital,3436.95,1987.08,1463.38,0.99,0
 T044,C044,Lisa Anderson,Premium,M017,Travel,ATM,4551.14,2824.46,1778.97,0.97,0
-T010,C011,Christina Floyd,Standard,M005,Utilities,ATM,3554.96,2412.24,1350.9,0.85,0
 T008,C041,Kevin Morgan,Standard,M018,Travel,Branch,4337.57,2824.46,1778.97,0.85,0
+T010,C011,Christina Floyd,Standard,M005,Utilities,ATM,3554.96,2412.24,1350.9,0.85,0
 T088,C003,Brittney Gallagher,Standard,M048,Healthcare,Branch,3205.91,1987.08,1463.38,0.83,0
 T082,C011,Christina Floyd,Standard,M009,Healthcare,Branch,3135.33,1987.08,1463.38,0.78,0
 T013,C036,Amy Wyatt,Student,M023,Travel,Digital,4170.59,2824.46,1778.97,0.76,0
@@ -41,8 +41,8 @@ T055,C048,Ronnie Mcgee,Standard,M048,Utilities,ATM,3009.6,2412.24,1350.9,0.44,0
 T092,C013,Kelsey Pitts,Standard,M037,Travel,Branch,3580.56,2824.46,1778.97,0.43,0
 T094,C059,James Jennings,Student,M026,Utilities,Digital,2828.32,2412.24,1350.9,0.31,0
 T066,C027,Megan Sellers,Premium,M021,Retail,ATM,2736.35,2370.43,1299.33,0.28,0
-T028,C038,William Roth,Premium,M003,Retail,Branch,2595.46,2370.43,1299.33,0.17,0
 T018,C008,Angela Snyder,Standard,M054,Utilities,ATM,2647.54,2412.24,1350.9,0.17,0
+T028,C038,William Roth,Premium,M003,Retail,Branch,2595.46,2370.43,1299.33,0.17,0
 T097,C020,Todd Benitez,Student,M001,Utilities,ATM,2637.53,2412.24,1350.9,0.17,0
 T048,C023,Isaiah Graham,Student,M001,Utilities,Digital,2624.34,2412.24,1350.9,0.16,0
 T019,C005,Erin Hall,Premium,M035,Healthcare,Digital,2188.13,1987.08,1463.38,0.14,0
@@ -60,9 +60,9 @@ T061,C011,Christina Floyd,Standard,M005,Retail,Digital,1973.95,2370.43,1299.33,-
 T001,C054,Amy Rodriguez,Standard,M015,Retail,Digital,1903.97,2370.43,1299.33,-0.36,0
 T065,C057,Patrick Phillips,Premium,M040,Healthcare,Digital,1440.63,1987.08,1463.38,-0.37,0
 T024,C035,Tyler May,Premium,M017,Retail,Branch,1863.49,2370.43,1299.33,-0.39,0
-T079,C052,Joyce Wilson,Standard,M045,Travel,Digital,1824.41,2824.46,1778.97,-0.56,0
 T060,C056,Sherry Chapman,Standard,M028,Utilities,Branch,1660.39,2412.24,1350.9,-0.56,0
 T086,C025,Derek Graham,Student,M025,Utilities,Digital,1659.66,2412.24,1350.9,-0.56,0
+T079,C052,Joyce Wilson,Standard,M045,Travel,Digital,1824.41,2824.46,1778.97,-0.56,0
 T047,C007,Patrick King,Standard,M028,Retail,Digital,1592.97,2370.43,1299.33,-0.6,0
 T014,C046,Michael Cardenas,Student,M042,Healthcare,Digital,1101.08,1987.08,1463.38,-0.61,0
 T037,C060,Maria Taylor,Student,M039,Retail,Branch,1557.84,2370.43,1299.33,-0.63,0
@@ -83,8 +83,8 @@ T069,C048,Ronnie Mcgee,Standard,M008,Healthcare,Branch,419.03,1987.08,1463.38,-1
 T016,C036,Amy Wyatt,Student,M026,Utilities,Digital,957.85,2412.24,1350.9,-1.08,0
 T015,C028,Christopher Patel,Premium,M033,Utilities,Branch,950.03,2412.24,1350.9,-1.08,0
 T084,C045,Mark Miller,Premium,M027,Healthcare,Branch,364.61,1987.08,1463.38,-1.11,0
-T007,C009,Molly Rogers,Standard,M022,Healthcare,ATM,337.51,1987.08,1463.38,-1.13,0
 T006,C050,Steven Schultz,Student,M026,Travel,Digital,822.17,2824.46,1778.97,-1.13,0
+T007,C009,Molly Rogers,Standard,M022,Healthcare,ATM,337.51,1987.08,1463.38,-1.13,0
 T032,C009,Molly Rogers,Standard,M023,Retail,Branch,894.09,2370.43,1299.33,-1.14,0
 T059,C016,Christina Barrett,Student,M024,Healthcare,Digital,273.88,1987.08,1463.38,-1.17,0
 T011,C048,Ronnie Mcgee,Standard,M050,Healthcare,Branch,151.89,1987.08,1463.38,-1.25,0

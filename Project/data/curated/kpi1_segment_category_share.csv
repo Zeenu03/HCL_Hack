@@ -1,13 +1,13 @@
-Segment,Category,txn_count,total_amount,spend_share_pct
+segment,category,txn_count,total_amount,spend_share_pct
+Premium,Healthcare,9,16077.45,24.58
 Premium,Retail,6,15791.76,24.14
 Premium,Travel,5,21988.33,33.61
-Premium,Healthcare,9,16077.45,24.58
 Premium,Utilities,5,11558.28,17.67
+Standard,Healthcare,9,19483.51,19.87
 Standard,Retail,12,28898.35,29.47
 Standard,Travel,10,19869.52,20.26
-Standard,Healthcare,9,19483.51,19.87
 Standard,Utilities,11,29803.62,30.39
+Student,Healthcare,8,16103.15,21.68
 Student,Retail,8,16940.97,22.81
 Student,Travel,6,17455.89,23.5
-Student,Healthcare,8,16103.15,21.68
 Student,Utilities,11,23768.65,32.0

@@ -1,4 +1,4 @@
-Segment,HourOfDay,TimeBucket,txn_count,total_amount
+segment,hourofday,timebucket,txn_count,total_amount
 Premium,0,Night,1,2736.35
 Premium,1,Night,1,1440.63
 Premium,2,Night,5,7200.66

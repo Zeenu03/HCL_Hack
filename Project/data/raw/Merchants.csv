@@ -1,0 +1,61 @@
+MerchantID,MerchantName,MerchantCategory,RiskLevel
+M001,Cummings and Sons,Travel,Low
+M002,Prince-Bullock,Travel,Low
+M003,"Moore, Church and Jones",Retail,Medium
+M004,"Page, Williams and Ford",Retail,High
+M005,"Marsh, Hawkins and English",Retail,Low
+M006,"Le, Roman and Evans",Travel,Low
+M007,Knight-Terry,Retail,Low
+M008,"Gonzalez, Kim and Singh",Retail,Medium
+M009,Walters-Rodriguez,Utilities,Medium
+M010,Goodwin LLC,Retail,High
+M011,Stephenson PLC,Travel,Low
+M012,"Davenport, Norton and Carr",Utilities,Medium
+M013,Miles Inc,Healthcare,Medium
+M014,"Ramos, Jones and Lopez",Travel,Low
+M015,Villarreal-Butler,Travel,Low
+M016,"Copeland, Maxwell and Le",Healthcare,Low
+M017,Shaw Ltd,Travel,High
+M018,"Dennis, Wise and Hines",Healthcare,Low
+M019,Rogers-Rodriguez,Healthcare,Low
+M020,Lester Inc,Travel,Low
+M021,"Hunt, Anderson and Scott",Retail,Low
+M022,Wilson Inc,Retail,Low
+M023,Martin Inc,Healthcare,Low
+M024,Andrews-Norman,Utilities,Low
+M025,Green PLC,Healthcare,Low
+M026,"Mcintyre, Perez and Weaver",Healthcare,Low
+M027,Craig LLC,Healthcare,Low
+M028,"Yoder, Diaz and Barber",Retail,Low
+M029,Brooks LLC,Retail,Medium
+M030,Reynolds-Sanchez,Retail,Low
+M031,Warren-Fischer,Healthcare,High
+M032,Herrera-Garcia,Utilities,Low
+M033,Miller PLC,Retail,Medium
+M034,Sanchez-Norris,Travel,Low
+M035,Jackson Group,Travel,Low
+M036,Hancock-Anderson,Travel,Low
+M037,Warren-Allison,Healthcare,Low
+M038,Mckinney PLC,Travel,Low
+M039,Mejia PLC,Healthcare,Low
+M040,"Cardenas, Roberts and Sandoval",Travel,Medium
+M041,Curry-Harris,Utilities,Medium
+M042,Mcintyre-Brown,Healthcare,Medium
+M043,Sweeney-Hebert,Travel,Low
+M044,"Lopez, Hampton and Howard",Retail,Low
+M045,York Group,Healthcare,Low
+M046,"Simmons, Rivera and Reed",Retail,Low
+M047,Estrada Inc,Retail,Low
+M048,Thompson Ltd,Retail,Medium
+M049,"Roberts, Thompson and Baker",Retail,Low
+M050,Fisher-Winters,Travel,Low
+M051,"King, Horton and Page",Travel,Low
+M052,"Harrell, Harris and Herrera",Healthcare,Low
+M053,Evans Group,Healthcare,High
+M054,"Davis, Mullen and Austin",Healthcare,Low
+M055,Garcia Inc,Travel,Low
+M056,Hart Group,Healthcare,Low
+M057,Blake-Miller,Retail,High
+M058,Frederick Group,Travel,Low
+M059,Hanson-Thompson,Healthcare,Medium
+M060,Mccoy Ltd,Retail,Low

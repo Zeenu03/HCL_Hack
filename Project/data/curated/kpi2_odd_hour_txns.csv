@@ -1,26 +1,26 @@
-TransactionID,CustomerID,CustomerName,Segment,MerchantID,Date,DayOfWeek,HourOfDay,TimeBucket,Amount,Category,Channel,odd_hour_flag
+transactionid,customerid,customername,segment,merchantid,date,dayofweek,hourofday,timebucket,amount,category,channel,odd_hour_flag
 T020,C057,Patrick Phillips,Premium,M022,2026-01-06,Tuesday,2,Night,1491.58,Utilities,Branch,1
 T027,C024,Andrew Cook,Premium,M017,2026-01-06,Tuesday,2,Night,1038.39,Retail,Branch,1
 T066,C027,Megan Sellers,Premium,M021,2026-01-07,Wednesday,0,Night,2736.35,Retail,ATM,1
 T018,C008,Angela Snyder,Standard,M054,2026-01-11,Sunday,3,Night,2647.54,Utilities,ATM,1
 T070,C060,Maria Taylor,Student,M047,2026-01-12,Monday,2,Night,4935.09,Travel,Digital,1
 T021,C045,Mark Miller,Premium,M002,2026-01-19,Monday,2,Night,3078.67,Retail,ATM,1
-T013,C036,Amy Wyatt,Student,M023,2026-01-31,Saturday,0,Night,4170.59,Travel,Digital,1
 T040,C003,Brittney Gallagher,Standard,M025,2026-01-31,Saturday,0,Night,2228.75,Utilities,ATM,1
-T076,C043,Nicholas Powell,Standard,M027,2026-02-05,Thursday,3,Night,3658.59,Healthcare,ATM,1
+T013,C036,Amy Wyatt,Student,M023,2026-01-31,Saturday,0,Night,4170.59,Travel,Digital,1
 T087,C056,Sherry Chapman,Standard,M044,2026-02-05,Thursday,3,Night,3661.55,Retail,Digital,1
+T076,C043,Nicholas Powell,Standard,M027,2026-02-05,Thursday,3,Night,3658.59,Healthcare,ATM,1
 T049,C050,Steven Schultz,Student,M034,2026-02-06,Friday,4,Night,2756.22,Healthcare,Digital,1
 T004,C001,Mark Warner,Student,M043,2026-02-08,Sunday,3,Night,3013.36,Retail,Branch,1
 T088,C003,Brittney Gallagher,Standard,M048,2026-02-08,Sunday,3,Night,3205.91,Healthcare,Branch,1
 T025,C003,Brittney Gallagher,Standard,M012,2026-02-09,Monday,3,Night,2307.55,Utilities,ATM,1
-T041,C058,Erik Rios,Premium,M058,2026-02-09,Monday,3,Night,654.09,Utilities,Digital,1
 T093,C053,Sheila Powell,Student,M020,2026-02-09,Monday,3,Night,3815.89,Utilities,Branch,1
+T041,C058,Erik Rios,Premium,M058,2026-02-09,Monday,3,Night,654.09,Utilities,Digital,1
+T085,C007,Patrick King,Standard,M043,2026-02-12,Thursday,4,Night,1589.36,Healthcare,Branch,1
 T019,C005,Erin Hall,Premium,M035,2026-02-12,Thursday,4,Night,2188.13,Healthcare,Digital,1
 T023,C010,Michele Diaz,Student,M057,2026-02-12,Thursday,4,Night,1496.12,Retail,Branch,1
-T085,C007,Patrick King,Standard,M043,2026-02-12,Thursday,4,Night,1589.36,Healthcare,Branch,1
-T047,C007,Patrick King,Standard,M028,2026-02-26,Thursday,1,Night,1592.97,Retail,Digital,1
 T065,C057,Patrick Phillips,Premium,M040,2026-02-26,Thursday,1,Night,1440.63,Healthcare,Digital,1
-T015,C028,Christopher Patel,Premium,M033,2026-02-27,Friday,2,Night,950.03,Utilities,Branch,1
-T061,C011,Christina Floyd,Standard,M005,2026-02-27,Friday,2,Night,1973.95,Retail,Digital,1
+T047,C007,Patrick King,Standard,M028,2026-02-26,Thursday,1,Night,1592.97,Retail,Digital,1
 T091,C015,Teresa Allen,Premium,M040,2026-02-27,Friday,2,Night,641.99,Healthcare,Digital,1
 T096,C023,Isaiah Graham,Student,M054,2026-02-27,Friday,2,Night,2494.29,Utilities,ATM,1
+T015,C028,Christopher Patel,Premium,M033,2026-02-27,Friday,2,Night,950.03,Utilities,Branch,1
+T061,C011,Christina Floyd,Standard,M005,2026-02-27,Friday,2,Night,1973.95,Retail,Digital,1

@@ -1,4 +1,4 @@
-CustomerID,CustomerName,Segment,total_txns,unique_merchants,repeat_txns,repeat_merchant_ratio,high_risk_txns,high_risk_share,high_risk_flag
+customerid,customername,segment,total_txns,unique_merchants,repeat_txns,repeat_merchant_ratio,high_risk_txns,high_risk_share,high_risk_flag
 C053,Sheila Powell,Student,2,1,1,0.5,0,0.0,0
 C011,Christina Floyd,Standard,3,2,1,0.3333,0,0.0,0
 C052,Joyce Wilson,Standard,4,3,1,0.25,0,0.0,0

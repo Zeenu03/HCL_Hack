@@ -1,4 +1,4 @@
-Year,MonthNum,Month,Category,total_spend,txn_count,mom_change_pct,category_share,share_change_pp,category_shift
+year,monthnum,month,category,total_spend,txn_count,mom_change_pct,category_share,share_change_pp,category_shift
 2026,1,Jan,Healthcare,20497.39,10,,0.183,,0
 2026,1,Jan,Retail,25455.52,12,,0.2272,,0
 2026,1,Jan,Travel,37049.56,12,,0.3307,,0

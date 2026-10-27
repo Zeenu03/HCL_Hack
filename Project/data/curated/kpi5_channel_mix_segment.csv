@@ -1,4 +1,4 @@
-Segment,ChannelGroup,txn_count,total_amount,txn_share_pct,amount_share_pct
+segment,channelgroup,txn_count,total_amount,txn_share_pct,amount_share_pct
 Premium,Digital,5,8945.72,20.0,13.68
 Premium,Physical,20,56470.1,80.0,86.32
 Standard,Digital,14,26412.55,33.33,26.94
